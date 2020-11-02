@@ -1,6 +1,6 @@
-import tensorflow.compat.v1 as tf
-import tensorflow.compat.v1.layers as layers
-from tensorflow.compat.v1 import placeholder
+import tensorflow as tf
+import tensorflow.layers as layers
+from tensorflow import placeholder
 
 from utils.general import get_logger
 from utils.test_env import EnvTest
@@ -8,7 +8,7 @@ from core.deep_q_learning import DQN
 from q1_schedule import LinearExploration, LinearSchedule
 from configs.q2_linear import config
 
-tf.disable_v2_behavior()
+
 
 
 class Linear(DQN):
@@ -95,7 +95,7 @@ class Linear(DQN):
         ##############################################################
         ################ YOUR CODE HERE - 2-3 lines ##################
         with tf.variable_scope(scope, reuse):
-            inputs = tf.flatten(state)
+            inputs = tf.layers.flatten(state)
             out = layers.dense(inputs, num_actions)
         ##############################################################
         ######################## END YOUR CODE #######################
@@ -137,18 +137,13 @@ class Linear(DQN):
         """
         ##############################################################
         ################### YOUR CODE HERE - 5-10 lines #############
-        values_names = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=q_scope)
+        num_actions = self.env.action_space.n
+        variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=q_scope)
         update_single_weight_in_target_ops = []
-        variables = []
-        with tf.variable_scope(q_scope, reuse=True):
-            for name in values_names:
-                variables.append(tf.get_variable(name))
-
-        with tf.variable_scope(target_q_scope, reuse=True):
-            for i, name in enumerate(values_names):
-                ref = tf.get_variable(name)
-                update_single_weight_in_target_ops.append(tf.assign(ref, variables[i]))
-        pass
+        with tf.variable_scope(target_q_scope, reuse=tf.AUTO_REUSE):
+            for i, variable in enumerate(variables):
+                ref = tf.get_variable(variable.name.replace(f"{q_scope}/", "").replace(":0", ""), shape=variable.shape)
+                update_single_weight_in_target_ops.append(tf.assign(ref, variable))
         self.update_target_op = tf.group(*update_single_weight_in_target_ops)
         ##############################################################
         ######################## END YOUR CODE #######################
@@ -186,8 +181,8 @@ class Linear(DQN):
         ##############################################################
         ##################### YOUR CODE HERE - 4-5 lines #############
         q_samp = self.r + tf.reduce_max(target_q, axis=1)
-        indices = tf.one_hot(self.actions, depth=num_actions)
-        q_s_a = tf.gather_nd(q, indices)
+        # indices = tf.one_hot(self.a, depth=num_actions, dtype=tf.int32)
+        q_s_a = tf.gather_nd(q, self.a)
         loss = tf.squared_difference(q_samp, q_s_a)
         loss_on_done = tf.boolean_mask(loss, self.done_mask)
         self.loss = tf.reduce_mean(loss_on_done)
@@ -226,12 +221,12 @@ class Linear(DQN):
         #################### YOUR CODE HERE - 8-12 lines #############
         var_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope)
         with tf.variable_scope(scope, reuse=True):
-            optimizer = tf.AdamOptimizer()
-            gradients = optimizer.compute_gradients(self.loss, var_list=var_list)
+            optimizer = tf.train.AdamOptimizer()
+            gradients = optimizer.compute_gradients(self.loss, var_list=var_list, gate_gradients=tf.train.Optimizer.GATE_GRAPH)
             if self.config.grad_clip:
-                gradients = tf.clip_by_norm(gradients, self.config.clip_val)
-                self.train_op = optimizer.apply_gradients(gradients)
-                self.grad_norm = tf.global_norm(gradients)
+                gradients = tf.clip_by_global_norm(gradients, self.config.clip_val)
+            self.train_op = optimizer.apply_gradients(gradients)
+            self.grad_norm = tf.global_norm(gradients)
 
         ##############################################################
         ######################## END YOUR CODE #######################
