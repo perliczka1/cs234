@@ -1,6 +1,8 @@
-import tensorflow as tf
-import tensorflow.layers as layers
-from tensorflow import placeholder
+import logging
+
+import tensorflow.compat.v1 as tf
+import tensorflow.compat.v1.layers as layers
+from tensorflow.compat.v1 import placeholder
 
 from utils.general import get_logger
 from utils.test_env import EnvTest
@@ -8,7 +10,8 @@ from core.deep_q_learning import DQN
 from q1_schedule import LinearExploration, LinearSchedule
 from configs.q2_linear import config
 
-
+tf.disable_v2_behavior()
+logging.getLogger('matplotlib.font_manager').disabled = True
 
 
 class Linear(DQN):
@@ -53,13 +56,15 @@ class Linear(DQN):
         ##############################################################
         ################YOUR CODE HERE (6-15 lines) ##################
         self.s = placeholder(tf.uint8,
-                             shape=(None, state_shape[0], state_shape[1], state_shape[2] * config.state_history))
-        self.a = placeholder(tf.int32, shape=(None,))
-        self.r = placeholder(tf.float32, shape=(None,))
+                             shape=(None, state_shape[0], state_shape[1], state_shape[2] * config.state_history),
+                             name='s')
+        self.a = placeholder(tf.int32, shape=(None,), name='a')
+        self.r = placeholder(tf.float32, shape=(None,), name='r')
         self.sp = placeholder(tf.uint8,
-                              shape=(None, state_shape[0], state_shape[1], state_shape[2] * config.state_history))
-        self.done_mask = placeholder(tf.bool, shape=(None,))
-        self.r = placeholder(tf.float32, shape=(1,))
+                              shape=(None, state_shape[0], state_shape[1], state_shape[2] * config.state_history),
+                              name='sp')
+        self.done_mask = placeholder(tf.bool, shape=(None,), name='done_mask')
+        self.lr = placeholder(tf.float32, shape=(), name='lr')
         ##############################################################
         ######################## END YOUR CODE #######################
 
@@ -145,6 +150,7 @@ class Linear(DQN):
                 ref = tf.get_variable(variable.name.replace(f"{q_scope}/", "").replace(":0", ""), shape=variable.shape)
                 update_single_weight_in_target_ops.append(tf.assign(ref, variable))
         self.update_target_op = tf.group(*update_single_weight_in_target_ops)
+
         ##############################################################
         ######################## END YOUR CODE #######################
 
@@ -180,12 +186,10 @@ class Linear(DQN):
         """
         ##############################################################
         ##################### YOUR CODE HERE - 4-5 lines #############
-        q_samp = self.r + tf.reduce_max(target_q, axis=1)
-        # indices = tf.one_hot(self.a, depth=num_actions, dtype=tf.int32)
-        q_s_a = tf.gather_nd(q, self.a)
-        loss = tf.squared_difference(q_samp, q_s_a)
-        loss_on_done = tf.boolean_mask(loss, self.done_mask)
-        self.loss = tf.reduce_mean(loss_on_done)
+        q_samp = tf.where(self.done_mask, self.r, self.r + self.config.gamma * tf.reduce_max(target_q, axis=1))
+        q_s_a = tf.gather(q, self.a, batch_dims=1)
+        squared_diff = tf.squared_difference(q_samp, q_s_a)
+        self.loss = tf.reduce_mean(squared_diff)
         ##############################################################
         ######################## END YOUR CODE #######################
 
@@ -220,14 +224,13 @@ class Linear(DQN):
         ##############################################################
         #################### YOUR CODE HERE - 8-12 lines #############
         var_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope)
-        with tf.variable_scope(scope, reuse=True):
+        with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
             optimizer = tf.train.AdamOptimizer()
-            gradients = optimizer.compute_gradients(self.loss, var_list=var_list, gate_gradients=tf.train.Optimizer.GATE_GRAPH)
+            gradients, variables = zip(*optimizer.compute_gradients(self.loss, var_list=var_list))
             if self.config.grad_clip:
-                gradients = tf.clip_by_global_norm(gradients, self.config.clip_val)
-            self.train_op = optimizer.apply_gradients(gradients)
+                gradients = [tf.clip_by_norm(gradient, self.config.clip_val) for gradient in gradients]
+            self.train_op = optimizer.apply_gradients(zip(gradients, variables))
             self.grad_norm = tf.global_norm(gradients)
-
         ##############################################################
         ######################## END YOUR CODE #######################
 

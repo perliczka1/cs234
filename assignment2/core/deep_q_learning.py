@@ -1,11 +1,11 @@
 import os
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import time
 
 from core.q_learning import QN
 
-
+tf.disable_v2_behavior()
 class DQN(QN):
     """
     Abstract class for Deep Q Learning
