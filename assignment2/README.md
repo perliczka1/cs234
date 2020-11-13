@@ -1,5 +1,10 @@
 # RL with Atari
 
+## Making it work on OS X 
+```
+brew install ffmpeg
+```
+
 ## Install
 
 First, install gym and atari environments. You may need to install other dependencies depending on your system.

@@ -1,11 +1,8 @@
 import tensorflow.compat.v1 as tf
 
-from utils.general import get_logger
 from utils.test_env import EnvTest
 from q1_schedule import LinearExploration, LinearSchedule
 from q2_linear import Linear
-
-
 from configs.q3_nature import config
 
 

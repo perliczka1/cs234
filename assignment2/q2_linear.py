@@ -142,7 +142,6 @@ class Linear(DQN):
         """
         ##############################################################
         ################### YOUR CODE HERE - 5-10 lines #############
-        num_actions = self.env.action_space.n
         variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=q_scope)
         update_single_weight_in_target_ops = []
         with tf.variable_scope(target_q_scope, reuse=tf.AUTO_REUSE):
@@ -150,7 +149,6 @@ class Linear(DQN):
                 ref = tf.get_variable(variable.name.replace(f"{q_scope}/", "").replace(":0", ""), shape=variable.shape)
                 update_single_weight_in_target_ops.append(tf.assign(ref, variable))
         self.update_target_op = tf.group(*update_single_weight_in_target_ops)
-
         ##############################################################
         ######################## END YOUR CODE #######################
 
@@ -224,13 +222,12 @@ class Linear(DQN):
         ##############################################################
         #################### YOUR CODE HERE - 8-12 lines #############
         var_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope)
-        with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
-            optimizer = tf.train.AdamOptimizer()
-            gradients, variables = zip(*optimizer.compute_gradients(self.loss, var_list=var_list))
-            if self.config.grad_clip:
-                gradients = [tf.clip_by_norm(gradient, self.config.clip_val) for gradient in gradients]
-            self.train_op = optimizer.apply_gradients(zip(gradients, variables))
-            self.grad_norm = tf.global_norm(gradients)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+        gradients, variables = zip(*optimizer.compute_gradients(self.loss, var_list=var_list))
+        if self.config.grad_clip:
+            gradients = [tf.clip_by_norm(gradient, self.config.clip_val) for gradient in gradients]
+        self.train_op = optimizer.apply_gradients(zip(gradients, variables))
+        self.grad_norm = tf.global_norm(gradients)
         ##############################################################
         ######################## END YOUR CODE #######################
 

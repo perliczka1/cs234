@@ -5,7 +5,7 @@ import time
 
 from core.q_learning import QN
 
-tf.disable_v2_behavior()
+# tf.disable_v2_behavior()
 class DQN(QN):
     """
     Abstract class for Deep Q Learning
